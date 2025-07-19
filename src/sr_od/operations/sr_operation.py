@@ -25,3 +25,26 @@ class SrOperation(Operation):
                            op_callback=op_callback,
                            need_check_game_win=need_check_game_win,
                            op_to_enter_game=op_to_enter_game)
+
+    def screenshot(self):
+        screen = super().screenshot()
+        self._check_reconnect_dialog(screen)
+        return screen
+
+    def _check_reconnect_dialog(self, screen) -> bool:
+        rect = Rect(780, 480, 1150, 550)
+        part = cv2_utils.crop_image_only(screen, rect)
+        ocr_result_map = self.ctx.ocr.run_ocr(part)
+        for text in ocr_result_map.keys():
+            if str_utils.find_by_lcs('与服务器断开连接，请重新登录', text, percent=0.6):
+                self.ctx.controller.click(Point(985, 645))
+                log.info('检测到与服务器断开连接，正在尝试重新连接...')
+                time.sleep(1)
+                if self.op_to_enter_game is not None:
+                    self.op_to_enter_game.execute()
+                self.handle_init()
+                self._current_node = self._start_node
+                self._reset_status_for_new_node()
+                self.ctx.screen_loader.update_current_screen_name(None)
+                return True
+        return False

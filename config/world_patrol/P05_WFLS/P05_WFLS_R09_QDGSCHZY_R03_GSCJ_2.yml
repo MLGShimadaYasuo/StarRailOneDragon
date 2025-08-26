@@ -171,22 +171,24 @@ route:
     data: [2465, 1143]
   - idx: 59
     op: 'move'
-    data: [2524, 1140, -2]
+    data: [2524, 1140]
   - idx: 60
-    op: 'move'
-    data: [2591, 1143]
+    op: 'update_pos'
+    data: [2524, 1140, -2]
   - idx: 61
     op: 'move'
-    data: [2623, 1154]
+    data: [2591, 1143]
   - idx: 62
     op: 'move'
-    data: [2623, 1184]
+    data: [2623, 1154]
   - idx: 63
+    op: 'move'
+    data: [2623, 1184]
+  - idx: 64
     op: 'gameplay_interact'
     data: ['0']
-  - idx: 64
+  - idx: 65
     op: 'move'
     data: [2689, 1121]
-  - idx: 65
+  - idx: 66
     op: 'patrol'
-

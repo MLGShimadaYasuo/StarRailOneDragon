@@ -2,193 +2,85 @@ author: ['DoctorReid']
 planet: '翁法罗斯'
 region: '「穹顶关塞」晨昏之眼'
 floor: 2
-tp: '关塞垂井'
+tp: '烬日之形·凝滞虚影'
 route:
   - idx: 1
     op: 'move'
-    data: [2147, 966]
+    data: [762, 842]
   - idx: 2
-    op: 'wait'
-    data: ['seconds', '3']
+    op: 'move'
+    data: [580, 842]
   - idx: 3
     op: 'move'
-    data: [2293, 965]
+    data: [572, 886]
   - idx: 4
-    op: 'slow_move'
-    data: [2327, 965]
+    op: 'patrol'
   - idx: 5
-    op: 'interact'
-    data: '下降'
-  - idx: 6
-    op: 'wait'
-    data: ['seconds', '13']
-  - idx: 7
-    op: 'update_pos'
-    data: [2327, 965, 1]
-  - idx: 8
     op: 'move'
-    data: [2395, 967]
+    data: [513, 885]
+  - idx: 6
+    op: 'disposable'
+  - idx: 7
+    op: 'move'
+    data: [579, 843]
+  - idx: 8
+    op: 'disposable'
   - idx: 9
-    op: 'wait'
-    data: ['seconds', '2']
+    op: 'move'
+    data: [696, 845]
   - idx: 10
     op: 'move'
-    data: [2430, 967]
+    data: [703, 854]
   - idx: 11
-    op: 'move'
-    data: [2406, 973]
-  - idx: 12
     op: 'disposable'
+  - idx: 12
+    op: 'move'
+    data: [691, 879]
   - idx: 13
     op: 'move'
-    data: [2436, 966]
+    data: [690, 1012]
   - idx: 14
-    op: 'slow_move'
-    data: [2442, 999]
-  - idx: 15
-    op: 'interact'
-    data: '激活'
-  - idx: 16
     op: 'move'
-    data: [2445, 967]
+    data: [644, 1012]
+  - idx: 15
+    op: 'move'
+    data: [645, 1187]
+  - idx: 16
+    op: 'disposable'
   - idx: 17
     op: 'move'
-    data: [2582, 965]
+    data: [531, 1193]
   - idx: 18
-    op: 'move'
-    data: [2563, 1004]
-  - idx: 19
     op: 'patrol'
+  - idx: 19
+    op: 'move'
+    data: [468, 1197]
   - idx: 20
-    op: 'move'
-    data: [2553, 994]
+    op: 'patrol'
   - idx: 21
-    op: 'disposable'
+    op: 'move'
+    data: [476, 1141]
   - idx: 22
-    op: 'disposable'
+    op: 'interact'
+    data: '跨入密径'
   - idx: 23
-    op: 'disposable'
+    op: 'wait'
+    data: ['seconds', '8']
   - idx: 24
-    op: 'move'
-    data: [2518, 967]
-  - idx: 25
-    op: 'move'
-    data: [2472, 967]
-  - idx: 26
-    op: 'move'
-    data: [2468, 1022]
-  - idx: 27
     op: 'gameplay_interact'
     data: ['0']
+  - idx: 25
+    op: 'wait'
+    data: ['in_world', '4']
+  - idx: 26
+    op: 'update_pos'
+    data: [482, 895, 3]
+  - idx: 27
+    op: 'move'
+    data: [483, 843]
   - idx: 28
     op: 'move'
-    data: [2470, 1098]
+    data: [555, 852]
   - idx: 29
-    op: 'move'
-    data: [2486, 1102]
-  - idx: 30
-    op: 'disposable'
-  - idx: 31
-    op: 'move'
-    data: [2472, 1135]
-  - idx: 32
-    op: 'move'
-    data: [2562, 1136]
-  - idx: 33
-    op: 'move'
-    data: [2559, 1199, -1]
-  - idx: 34
-    op: 'move'
-    data: [2584, 1201]
-  - idx: 35
-    op: 'move'
-    data: [2585, 1246]
-  - idx: 36
-    op: 'move'
-    data: [2604, 1246]
-  - idx: 37
-    op: 'disposable'
-  - idx: 38
-    op: 'move'
-    data: [2621, 1245]
-  - idx: 39
-    op: 'move'
-    data: [2624, 1214]
-  - idx: 40
-    op: 'gameplay_interact'
-    data: ['0']
-  - idx: 41
-    op: 'move'
-    data: [2734, 1165]
-  - idx: 42
-    op: 'move'
-    data: [2738, 1111]
-  - idx: 43
     op: 'patrol'
-  - idx: 44
-    op: 'move'
-    data: [2700, 1136]
-  - idx: 45
-    op: 'gameplay_interact'
-    data: ['0']
-  - idx: 46
-    op: 'wait'
-    data: ['seconds', '3']
-  - idx: 47
-    op: 'move'
-    data: [2734, 1136]
-  - idx: 48
-    op: 'move'
-    data: [2733, 1183]
-  - idx: 49
-    op: 'gameplay_interact'
-    data: ['0']
-  - idx: 50
-    op: 'move'
-    data: [2619, 1244]
-  - idx: 51
-    op: 'move'
-    data: [2584, 1243]
-  - idx: 52
-    op: 'move'
-    data: [2583, 1200]
-  - idx: 53
-    op: 'move'
-    data: [2559, 1199]
-  - idx: 54
-    op: 'move'
-    data: [2555, 1267]
-  - idx: 55
-    op: 'disposable'
-  - idx: 56
-    op: 'move'
-    data: [2465, 1266]
-  - idx: 57
-    op: 'move'
-    data: [2465, 1203]
-  - idx: 58
-    op: 'move'
-    data: [2465, 1143]
-  - idx: 59
-    op: 'move'
-    data: [2524, 1140]
-  - idx: 60
-    op: 'update_pos'
-    data: [2524, 1140, -2]
-  - idx: 61
-    op: 'move'
-    data: [2591, 1143]
-  - idx: 62
-    op: 'move'
-    data: [2623, 1154]
-  - idx: 63
-    op: 'move'
-    data: [2623, 1184]
-  - idx: 64
-    op: 'gameplay_interact'
-    data: ['0']
-  - idx: 65
-    op: 'move'
-    data: [2689, 1121]
-  - idx: 66
-    op: 'patrol'
+

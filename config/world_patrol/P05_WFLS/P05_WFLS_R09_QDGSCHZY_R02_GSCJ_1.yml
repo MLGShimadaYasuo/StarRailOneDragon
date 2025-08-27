@@ -40,4 +40,3 @@ route:
     data: [2076, 1021]
   - idx: 13
     op: 'patrol'
-

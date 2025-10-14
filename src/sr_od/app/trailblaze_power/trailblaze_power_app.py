@@ -44,7 +44,7 @@ class TrailblazePowerApp(SrApplication):
         :return:
         """
         self.ctx.power_config.check_plan_run_times()
-        plan: Optional[TrailblazePowerPlanItem] = self.ctx.power_config.next_plan_item
+        plan: Optional[TrailblazePowerPlanItem] = self.ctx.power_config.get_next_plan()
 
         if plan is None:
             return self.round_success(status=TrailblazePowerApp.STATUS_NO_PLAN)
@@ -67,17 +67,24 @@ class TrailblazePowerApp(SrApplication):
     @operation_node(name='执行开拓力计划')
     def execute_plan(self) -> OperationRoundResult:
         self.ctx.power_config.check_plan_run_times()
-        plan: Optional[TrailblazePowerPlanItem] = self.ctx.power_config.next_plan_item
-        if plan is None:
-            return self.round_success(TrailblazePowerApp.STATUS_NO_PLAN)
+        plan: Optional[TrailblazePowerPlanItem] = self.ctx.power_config.get_next_plan()
+        for _ in range(100):
+            if plan is None:
+                return self.round_success(TrailblazePowerApp.STATUS_NO_PLAN)
 
-        mission: Optional[GuideMission] = self.ctx.guide_data.get_mission_by_unique_id(plan.mission_id)
-        if mission is None:
-            return self.round_success(TrailblazePowerApp.STATUS_NO_PLAN)
+            mission: Optional[GuideMission] = self.ctx.guide_data.get_mission_by_unique_id(plan.mission_id)
+            if mission is None:
+                return self.round_success(TrailblazePowerApp.STATUS_NO_PLAN)
 
-        can_run_times: int = self.power // mission.power
-        if mission.cate.cn in ['模拟宇宙', '饰品提取']:  # 模拟宇宙相关的增加沉浸器数量
-            can_run_times += self.qty
+            can_run_times: int = self.power // mission.power
+            if mission.cate.cn in ['模拟宇宙', '饰品提取']:  # 模拟宇宙相关的增加沉浸器数量
+                can_run_times += self.qty
+
+            if can_run_times > 0:
+                break
+            plan = self.ctx.power_config.get_next_plan(plan)
+            if plan is None:
+                break
 
         if can_run_times == 0:
             return self.round_success(TrailblazePowerApp.STATUS_NO_ENOUGH_POWER)
@@ -136,6 +143,8 @@ class TrailblazePowerApp(SrApplication):
         """
         log.info('挑战成功 完成次数 %d 使用体力 %d', finished_times, use_power)
         self.power -= use_power
+        if self.power < 0:
+            self.power = 0
         self.ctx.power_config.add_run_times(self.last_mission.unique_id, finished_times)
 
     def _on_sim_uni_get_reward(self, use_power: int, user_qty: int):
@@ -147,7 +156,11 @@ class TrailblazePowerApp(SrApplication):
         self.ctx.power_config.add_run_times(self.last_mission.unique_id, 1)
 
         self.power -= use_power
+        if self.power < 0:
+            self.power = 0
         self.qty -= user_qty
+        if self.qty < 0:
+            self.qty = 0
 
     def on_oe_get_reward(self, qty: int):
         """
@@ -172,3 +185,17 @@ class TrailblazePowerApp(SrApplication):
         self.notify_screenshot = self.save_screenshot_bytes()  # 结束后通知的截图
         op = BackToNormalWorldPlus(self.ctx)
         return self.round_by_op_result(op.execute())
+
+
+def debug():
+    ctx = SrContext()
+    ctx.init_by_config()
+    ctx.init_ocr()
+    ctx.start_running()
+    op = TrailblazePowerApp(ctx)
+
+    op.execute()
+
+
+if __name__ == '__main__':
+    debug()

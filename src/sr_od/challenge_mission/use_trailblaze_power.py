@@ -92,8 +92,6 @@ class UseTrailblazePower(SrOperation):
             return min(8, current_challenge_times)
         elif self.mission.cate.cn == '侵蚀隧洞':
             return min(6, current_challenge_times)
-        # elif self.mission.cate.cn == '饰品提取':
-        #     return min(6, current_challenge_times)
         return 1
 
     @node_from(from_name='选择次数')

@@ -1,9 +1,7 @@
 import time
 
 from cv2.typing import MatLike
-from typing import ClassVar
 
-from one_dragon.base.geometry.rectangle import Rect
 from one_dragon.base.operation.operation_node import operation_node
 from one_dragon.base.operation.operation_round_result import OperationRoundResult
 from one_dragon.utils import cv2_utils, str_utils
@@ -54,7 +52,6 @@ class ChooseChallengeTimes(SrOperation):
         area = self.ctx.screen_loader.get_area('副本连续挑战次数', '文本-挑战次数-' + self.mission_type)
         part = cv2_utils.crop_image_only(screen, area.rect)
         # cv2_utils.show_image(part, win_name='_get_current_times')
-        # cv2.imwrite('y:/part.png', part)
         ocr_result = self.ctx.ocr.run_ocr_single_line(part, strict_one_line=True)
         return str_utils.get_positive_digits(ocr_result, err=0)
 

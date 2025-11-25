@@ -4,10 +4,24 @@
 
 - tab_name: "生存索引"
   category_list:
+    - category_name: "培养目标"
+      remark_in_game: "角色培养"
+      show_in_power_plan: true
+      mission_list:
+        - mission_name: "培养目标"
+          show_in_power_plan: true
+          display_name: "培养目标"
+          power: 20
+
     - category_name: "饰品提取"
       remark_in_game: "位面饰品"
       show_in_power_plan: true
       mission_list:
+        - mission_name: "西风丛中"
+          show_in_power_plan: true
+          display_name: "永恒之地翁法罗斯 天国@直播间"
+          power: 40
+
         - mission_name: "月下朱殷"
           show_in_power_plan: true
           display_name: "妖精织梦的乐园 沉欢醉饮的海隅"
@@ -489,6 +503,12 @@
       remark_in_game: "行迹高级材料/光锥"
       show_in_power_plan: false
       mission_list:
+        - mission_name: "铁骸的锈冢·历战余响"
+          show_in_power_plan: true
+          display_name: "晨昏的回眸"
+          region_name: "「葬忆彼岸」时光归墟"
+          power: 30
+
         - mission_name: "晨昏的回眸·历战余响"
           show_in_power_plan: true
           display_name: "晨昏的回眸"
@@ -531,20 +551,23 @@
           region_name: "支援舱段"
           power: 30
 
-- tab_name: "模拟宇宙"
+- tab_name: "旷宇纷争"
   category_list:
+    # 新版本 模拟宇宙/差分宇宙 入口
     - category_name: "差分宇宙"
-    - category_name: "模拟宇宙"
-      show_in_power_plan: true
+      show_in_power_plan: false
       mission_list:
-        - mission_name: "模拟宇宙"
-          region_name: "首通奖励"
-
-        - mission_name: "第三宇宙"
-          display_name: "太空封印站 不老者的仙舟"
+        - mission_name: "前往参与"
+          display_name: "前往参与"
           show_in_power_plan: true
-          power: 40
+          power: 0
 
+        - mission_name: "前往模拟宇宙"
+          display_name: "前往模拟宇宙"
+          show_in_power_plan: true
+          power: 0
+
+        # 以下内容在这个界面中已经没了
         - mission_name: "第四宇宙"
           display_name: "盗贼公园塔利亚 生命的翁瓦克"
           show_in_power_plan: true

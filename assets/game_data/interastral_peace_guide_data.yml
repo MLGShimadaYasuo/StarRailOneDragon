@@ -11,7 +11,7 @@
         - mission_name: "培养目标"
           show_in_power_plan: true
           display_name: "培养目标"
-          power: 20
+          power: 40
 
     - category_name: "饰品提取"
       remark_in_game: "位面饰品"
@@ -505,7 +505,7 @@
       mission_list:
         - mission_name: "铁骸的锈冢·历战余响"
           show_in_power_plan: true
-          display_name: "晨昏的回眸"
+          display_name: "铁骸的锈冢"
           region_name: "「葬忆彼岸」时光归墟"
           power: 30
 

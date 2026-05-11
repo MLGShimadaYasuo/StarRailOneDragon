@@ -3,6 +3,7 @@ import time
 from cv2.typing import MatLike
 
 from one_dragon.base.operation.operation_edge import node_from
+from one_dragon.base.operation.operation_notify import NotifyTiming, node_notify
 from one_dragon.base.operation.operation_node import operation_node
 from one_dragon.base.operation.operation_round_result import OperationRoundResult
 from one_dragon.utils.i18_utils import gt
@@ -92,9 +93,9 @@ class DailyTrainingApp(SrApplication):
         return self.round_wait('检查每日实训领取情况', wait=0.5)
 
     @node_from(from_name='领取奖励')
+    @node_notify(when=NotifyTiming.CURRENT_DONE)
     @operation_node(name='结束后返回')
     def back_at_last(self) -> OperationRoundResult:
-        self.notify_screenshot = self.save_screenshot_bytes()  # 结束后通知的截图
         op = BackToNormalWorldPlus(self.ctx)
         return self.round_by_op_result(op.execute())
 

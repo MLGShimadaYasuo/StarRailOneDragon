@@ -1,3 +1,4 @@
+from one_dragon.base.operation.operation_notify import NotifyTiming, node_notify
 from one_dragon.base.operation.operation_node import operation_node
 from one_dragon.base.operation.operation_round_result import OperationRoundResult
 from one_dragon.utils.i18_utils import gt
@@ -14,9 +15,9 @@ class MemoryCrystalShardApp(SrApplication):
                                op_name=gt('领取记忆残晶'),
                                run_record=ctx.memory_crystal_shard_run_record)
 
+    @node_notify(when=NotifyTiming.CURRENT_DONE)
     @operation_node(name='执行自定义指令', is_start_node=True)
     def run_op(self) -> OperationRoundResult:
         op = CustomCombineOp(self.ctx, 'memory_crystal_shard', no_battle=True)
         result = op.execute()
-        self.notify_screenshot = self.save_screenshot_bytes()  # 结束后通知的截图
         return self.round_by_op_result(result)

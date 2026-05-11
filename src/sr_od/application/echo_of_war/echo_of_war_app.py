@@ -2,6 +2,7 @@ from typing import Optional
 
 from one_dragon.base.operation.application_run_record import AppRunRecord
 from one_dragon.base.operation.operation_edge import node_from
+from one_dragon.base.operation.operation_notify import NotifyTiming, node_notify
 from one_dragon.base.operation.operation_node import operation_node
 from one_dragon.base.operation.operation_round_result import OperationRoundResult
 from one_dragon.utils.i18_utils import gt
@@ -52,6 +53,7 @@ class EchoOfWarApp(SrApplication):
         return self.round_by_op_result(op_result)
 
     @node_from(from_name='检查体力')
+    @node_notify(when=NotifyTiming.CURRENT_SUCCESS)
     @operation_node(name='挑战')
     def _use_power(self) -> OperationRoundResult:
         config = self.ctx.echo_of_war_config
@@ -92,7 +94,6 @@ class EchoOfWarApp(SrApplication):
             on_battle_success=on_battle_success
         )
         if op.execute().success:
-            self.notify_screenshot = self.save_screenshot_bytes()  # 结束后通知的截图
             return self.round_wait()
         else:  # 挑战
             return self.round_retry('挑战失败')

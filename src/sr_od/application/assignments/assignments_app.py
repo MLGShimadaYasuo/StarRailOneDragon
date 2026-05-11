@@ -1,6 +1,7 @@
 from typing import ClassVar
 
 from one_dragon.base.operation.operation_edge import node_from
+from one_dragon.base.operation.operation_notify import NotifyTiming, node_notify
 from one_dragon.base.operation.operation_node import operation_node
 from one_dragon.base.operation.operation_round_result import OperationRoundResult
 from one_dragon.utils.i18_utils import gt
@@ -81,9 +82,9 @@ class AssignmentsApp(SrApplication):
 
     @node_from(from_name='识别委托状态', status=STATUS_ASSIGNING)
     @node_from(from_name='点击委托', status=STATUS_NO_ALERT)
+    @node_notify(when=NotifyTiming.CURRENT_DONE)
     @operation_node(name='完成后返回大世界')
     def back_at_last(self) -> OperationRoundResult:
-        self.notify_screenshot = self.save_screenshot_bytes()  # 结束后通知的截图
         op = BackToNormalWorldPlus(self.ctx)
         return self.round_by_op_result(op.execute())
 

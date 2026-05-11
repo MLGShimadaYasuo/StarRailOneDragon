@@ -5,6 +5,7 @@ from typing import List, Optional, ClassVar
 from one_dragon.base.operation.application_run_record import AppRunRecord
 from one_dragon.base.operation.operation_base import OperationResult
 from one_dragon.base.operation.operation_edge import node_from
+from one_dragon.base.operation.operation_notify import NotifyTiming, node_notify
 from one_dragon.base.operation.operation_node import operation_node
 from one_dragon.base.operation.operation_round_result import OperationRoundResult
 from one_dragon.utils.i18_utils import gt
@@ -115,9 +116,9 @@ class WorldPatrolApp(SrApplication):
 
     @node_from(from_name='加载路线', status=STATUS_ALL_ROUTE_FINISHED)
     @node_from(from_name='运行路线', status=STATUS_ALL_ROUTE_FINISHED)
+    @node_notify(when=NotifyTiming.CURRENT_DONE)
     @operation_node(name='完成')
     def finished(self) -> OperationRoundResult:
-        self.notify_screenshot = self.save_screenshot_bytes()  # 结束后通知的截图
         return self.round_success()
 
     def save_record(self, route_id: str, time_cost: float):

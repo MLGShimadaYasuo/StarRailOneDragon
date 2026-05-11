@@ -1,4 +1,5 @@
 from one_dragon.base.operation.operation_edge import node_from
+from one_dragon.base.operation.operation_notify import NotifyTiming, node_notify
 from one_dragon.base.operation.operation_node import operation_node
 from one_dragon.base.operation.operation_round_result import OperationRoundResult
 from one_dragon.utils.i18_utils import gt
@@ -32,6 +33,7 @@ class TrickSnackApp(SrApplication):
         return self.round_by_op_result(op.execute())
 
     @node_from(from_name='购买路线2')
+    @node_notify(when=NotifyTiming.CURRENT_DONE)
     @operation_node(name='合成')
     def synthesize_trick_snack(self) -> OperationRoundResult:
         if not self.ctx.trick_snack_config.synthesize_trick_snack:
@@ -39,7 +41,6 @@ class TrickSnackApp(SrApplication):
 
         op = CustomCombineOp(self.ctx, 'synthesize_trick_snack', no_battle=True)
         result = op.execute()
-        self.notify_screenshot = self.save_screenshot_bytes()  # 结束后通知的截图
         return self.round_by_op_result(result)
 
 

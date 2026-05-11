@@ -28,14 +28,10 @@ class NotifyApp(SrApplication):
 
         message = self.format_message()
 
-        image = None
-        if self.ctx.push_service.push_config.send_image:
-            image = self.save_screenshot_bytes()
-
         self.ctx.push_service.push(
             title=self.ctx.notify_config.title,
             content=message,
-            image=image,
+            image=self.last_screenshot,
         )
 
         if self.exist_failure:

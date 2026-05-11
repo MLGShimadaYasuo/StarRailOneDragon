@@ -28,6 +28,8 @@ config/*[!_sample].yml
 config/app_run_record/
 config/[0-9]*/
 config/model.yml
+config/custom.yml
+config/pip.yml
 
 # 执行文件
 *.exe

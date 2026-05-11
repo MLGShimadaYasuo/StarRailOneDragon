@@ -101,7 +101,8 @@ try:
             super().create_sub_interface()
 
             # 主页
-            # self.add_sub_interface(HomeInterface(self.ctx, parent=self))
+            from sr_od.gui.interface.home.home_interface import HomeInterface
+            self.add_sub_interface(HomeInterface(self.ctx, parent=self))
 
             from sr_od.gui.interface.one_dragon.sr_one_dragon_interface import SrOneDragonInterface
             self.add_sub_interface(SrOneDragonInterface(self.ctx, parent=self))

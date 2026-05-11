@@ -30,6 +30,10 @@ config/[0-9]*/
 config/model.yml
 config/custom.yml
 config/pip.yml
+custom/assets/ui/banner
+assets/ui/version_poster.webp
+assets/ui/static_background.webp
+assets/ui/dynamic_background.webm
 
 # 执行文件
 *.exe

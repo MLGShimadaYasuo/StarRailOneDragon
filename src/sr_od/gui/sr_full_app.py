@@ -104,6 +104,9 @@ try:
             from sr_od.gui.interface.home.home_interface import HomeInterface
             self.add_sub_interface(HomeInterface(self.ctx, parent=self))
 
+            from sr_od.gui.interface.game_assistant.game_assistant_interface import GameAssistantInterface
+            self.add_sub_interface(GameAssistantInterface(self.ctx, parent=self))
+
             from sr_od.gui.interface.one_dragon.sr_one_dragon_interface import SrOneDragonInterface
             self.add_sub_interface(SrOneDragonInterface(self.ctx, parent=self))
 
@@ -112,9 +115,6 @@ try:
 
             from sr_od.gui.interface.sim_uni.sim_uni_interface import SimUniInterface
             self.add_sub_interface(SimUniInterface(self.ctx, parent=self))
-
-            from sr_od.gui.interface.game_assistant.game_assistant_interface import GameAssistantInterface
-            self.add_sub_interface(GameAssistantInterface(self.ctx, parent=self))
 
             from one_dragon_qt.widgets.pip_button import PipButton
             self.pip_btn = PipButton(self.ctx, parent=self)

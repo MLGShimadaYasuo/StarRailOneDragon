@@ -12,10 +12,10 @@ class SrLauncher(ExeLauncher):
         ExeLauncher.__init__(self, "星穹铁道 一条龙 启动器", __version__)
 
     def run_onedragon_mode(self, launch_args) -> None:
-        python_launcher.run_python(["sr_od", "application", "sr_application_launcher.py"], no_windows=False, args=launch_args)
+        python_launcher.run_python(["sr_od", "application", "sr_application_launcher"], no_windows=False, args=launch_args)
 
     def run_gui_mode(self) -> None:
-        python_launcher.run_python(["sr_od", "gui", "sr_full_app.py"], no_windows=True)
+        python_launcher.run_python(["sr_od", "gui", "sr_full_app"], no_windows=True)
 
 
 if __name__ == '__main__':

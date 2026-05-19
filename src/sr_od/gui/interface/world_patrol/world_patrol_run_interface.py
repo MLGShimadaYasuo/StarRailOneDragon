@@ -50,4 +50,3 @@ class WorldPatrolRunInterface(AppRunInterface):
     def on_reset_clicked(self) -> None:
         self.ctx.world_patrol_record.reset_record()
         log.info('运行记录已重置')
-

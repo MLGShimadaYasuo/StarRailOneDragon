@@ -5,13 +5,27 @@ from one_dragon.base.operation.operation_node import operation_node
 from one_dragon.base.operation.operation_round_result import OperationRoundResult
 from one_dragon.utils.i18_utils import gt
 from one_dragon.utils.log_utils import log
-from sr_od.config.character_const import Character, TECHNIQUE_BUFF, TECHNIQUE_AREA, TECHNIQUE_ATTACK, \
-    is_attack_character, TECHNIQUE_BUFF_ATTACK, SILVERWOLF, TECHNIQUE_BUFF_ATTACK_DISAPPEAR
+from sr_od.config.character_const import (
+    Character,
+    SILVERWOLF,
+    TECHNIQUE_AREA,
+    TECHNIQUE_ATTACK,
+    TECHNIQUE_BUFF,
+    TECHNIQUE_BUFF_ATTACK,
+    TECHNIQUE_BUFF_ATTACK_DISAPPEAR,
+    is_attack_character,
+)
 from sr_od.context.sr_context import SrContext
 from sr_od.operations.sr_operation import SrOperation
 from sr_od.operations.team.check_team_members_in_world import CheckTeamMembersInWorld
 from sr_od.operations.team.switch_member import SwitchMember
-from sr_od.operations.technique import CheckTechniquePoint, UseTechnique, UseTechniqueResult
+from sr_od.operations.technique import (
+    CheckTechniquePoint,
+    get_technique_fight_policy,
+    is_current_technique_active,
+    UseTechnique,
+    UseTechniqueResult,
+)
 from sr_od.screen_state import common_screen_state
 
 
@@ -43,6 +57,8 @@ class StartFightForElite(SrOperation):
         self.technique_point: int = 5  # 秘技点
         self.technique_idx: int = 0  # 当前到哪一个角色使用
         self.skip_resurrection_check: bool = skip_resurrection_check  # 跳过切换角色时检测复活
+        self.final_character_idx: Optional[int] = None
+        self.final_attack_wait_done: bool = False
 
     def handle_init(self) -> Optional[OperationRoundResult]:
         """
@@ -57,6 +73,8 @@ class StartFightForElite(SrOperation):
         self.technique_order = []
         self.need_attack_finally = True
         self.technique_idx: int = 0  # 当前到哪一个角色使用
+        self.final_character_idx = None
+        self.final_attack_wait_done = False
 
         return None
 
@@ -79,7 +97,16 @@ class StartFightForElite(SrOperation):
 
         # 秘技点不够的时候 减少使用
         if self.technique_point < len(self.technique_order):
-            self.technique_order = self.technique_order[:self.technique_point]
+            if (self.final_character_idx is not None
+                    and self.technique_point > 0
+                    and self.technique_order[-1] == self.final_character_idx):
+                # 优先丢弃前置BUFF，至少保留1点给最终负责开怪的角色。
+                self.technique_order = (
+                        self.technique_order[:self.technique_point - 1]
+                        + [self.technique_order[-1]]
+                )
+            else:
+                self.technique_order = self.technique_order[:self.technique_point]
 
         log.info(f'最后秘技顺序 {self.technique_order}')
         return self.round_success()
@@ -129,6 +156,7 @@ class StartFightForElite(SrOperation):
             if not is_attack_character(self.character_list[i].id):
                 continue
             if self.character_list[i].technique_type in [TECHNIQUE_ATTACK, TECHNIQUE_BUFF_ATTACK, TECHNIQUE_BUFF_ATTACK_DISAPPEAR]:
+                self.final_character_idx = i
                 self.technique_order.append(i)
                 return self.round_success()
 
@@ -136,6 +164,7 @@ class StartFightForElite(SrOperation):
             if self.character_list[i] is None:
                 continue
             if self.character_list[i] == SILVERWOLF:
+                self.final_character_idx = i
                 self.technique_order.append(i)
                 return self.round_success()
 
@@ -143,6 +172,7 @@ class StartFightForElite(SrOperation):
             if self.character_list[i] is None:
                 continue
             if self.character_list[i].technique_type in [TECHNIQUE_ATTACK, TECHNIQUE_BUFF_ATTACK, TECHNIQUE_BUFF_ATTACK_DISAPPEAR]:
+                self.final_character_idx = i
                 self.technique_order.append(i)
                 return self.round_success()
 
@@ -171,18 +201,30 @@ class StartFightForElite(SrOperation):
         使用秘技
         :return:
         """
+        idx = self.technique_order[self.technique_idx]
+        is_final_character = idx == self.final_character_idx
+        fight_policy = get_technique_fight_policy(self.character_list[idx]) if is_final_character else None
+        if (fight_policy is not None
+                and is_current_technique_active(self.ctx, self.last_screenshot)):
+            # 可保持的秘技已经开启时不能再次按键，否则会把保持状态关闭。
+            self.technique_idx += 1
+            self.final_attack_wait_done = True
+            return self.round_success(wait=fight_policy.wait_before_attack)
+
         op = UseTechnique(self.ctx)
         op_result = op.execute()
         use_tech = False
         if op_result.success:
             op_result_data: UseTechniqueResult = op_result.data
             use_tech = op_result_data.use_tech
-            idx = self.technique_order[self.technique_idx]
             self.need_attack_finally = self.character_list[idx].technique_type != TECHNIQUE_ATTACK
         self.technique_idx += 1
 
         wait_time = 0
-        if self.technique_idx < len(self.technique_order) and use_tech:
+        if fight_policy is not None and use_tech:
+            wait_time = max(fight_policy.wait_after_use, fight_policy.wait_before_attack)
+            self.final_attack_wait_done = True
+        elif self.technique_idx < len(self.technique_order) and use_tech:
             # 还需要切换人物使用秘技的情况
             # 如果这次使用了秘技 要等待一下后摇消失后 再进行下一步操作
             wait_time = 1.5
@@ -195,6 +237,18 @@ class StartFightForElite(SrOperation):
         发起攻击
         :return:
         """
+        final_character = (
+            None if self.final_character_idx is None
+            else self.character_list[self.final_character_idx]
+        )
+        fight_policy = get_technique_fight_policy(final_character)
+        if fight_policy is not None and not self.final_attack_wait_done:
+            self.final_attack_wait_done = True
+            return self.round_retry(
+                '等待秘技开怪',
+                wait=fight_policy.wait_before_attack,
+            )
+
         screen = self.last_screenshot
         # 仍在大世界的话 就尝试攻击
         if common_screen_state.is_normal_in_world(self.ctx, screen) \

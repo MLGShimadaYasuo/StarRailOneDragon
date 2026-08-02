@@ -19,7 +19,7 @@ from sr_od.application.sim_universe.operations.sim_uni_enter_fight import SimUni
 from sr_od.application.sim_universe.sim_uni_data import SimUniLevelType, SimUniLevelTypeEnum
 from sr_od.context.sr_context import SrContext
 from sr_od.operations.sr_operation import SrOperation
-from sr_od.operations.technique import UseTechnique
+from sr_od.operations.technique import should_use_buff_technique, UseTechnique
 from sr_od.screen_state import common_screen_state
 from sr_od.sr_map import mini_map_utils
 from sr_od.sr_map.mini_map_info import MiniMapInfo
@@ -53,7 +53,7 @@ class SimUniRunCombatRouteV2(SimUniRunRouteBaseV2):
 
         if (self.ctx.sim_uni_challenge_config.technique_fight
                 and self.ctx.team_info.is_buff_technique
-                and not self.ctx.tech_used_in_lasting):
+                and should_use_buff_technique(self.ctx, screen)):
             op = UseTechnique(self.ctx,
                               max_consumable_cnt=self.ctx.sim_uni_challenge_config.max_consumable_cnt,
                               need_check_point=True,  # 检查秘技点是否足够 可以在没有或者不能用药的情况加快判断

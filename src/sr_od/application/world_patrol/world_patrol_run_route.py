@@ -20,7 +20,7 @@ from sr_od.operations.move.move_without_pos import MoveWithoutPos
 from sr_od.operations.sr_operation import SrOperation
 from sr_od.operations.team.check_team_members_in_world import CheckTeamMembersInWorld
 from sr_od.operations.team.switch_member import SwitchMember
-from sr_od.operations.technique import UseTechnique
+from sr_od.operations.technique import get_current_technique_fight_policy, should_use_buff_technique, UseTechnique
 from sr_od.operations.wait.wait_in_seconds import WaitInSeconds
 from sr_od.operations.wait.wait_in_world import WaitInWorld
 from sr_od.screen_state import common_screen_state
@@ -98,6 +98,25 @@ class WorldPatrolRunRoute(SrOperation):
         return self.round_by_op_result(op.execute())
 
     @node_from(from_name='检测组队')
+    @operation_node(name='传送后检查秘技')
+    def _check_technique_after_transport(self) -> OperationRoundResult:
+        """传送落地后，按当前角色策略确认需要保持的秘技仍然开启。"""
+        fight_policy = get_current_technique_fight_policy(self.ctx)
+        if (not self.ctx.world_patrol_config.technique_fight
+                or fight_policy is None
+                or not fight_policy.check_after_transport
+                or not should_use_buff_technique(self.ctx, self.last_screenshot)):
+            return self.round_success()
+
+        op = UseTechnique(
+            self.ctx,
+            max_consumable_cnt=self.ctx.world_patrol_config.max_consumable_cnt,
+            need_check_point=True,
+            trick_snack=self.ctx.game_config.use_quirky_snacks,
+        )
+        return self.round_by_op_result(op.execute())
+
+    @node_from(from_name='传送后检查秘技')
     @node_from(from_name='执行路线指令')
     @operation_node(name='执行路线指令')
     def _next_op(self) -> OperationRoundResult:
@@ -134,7 +153,7 @@ class WorldPatrolRunRoute(SrOperation):
         should_use_tech: bool = False
         if (self.ctx.world_patrol_config.technique_fight
                 and self.ctx.team_info.is_buff_technique
-                and not self.ctx.tech_used_in_lasting):
+                and should_use_buff_technique(self.ctx, self.last_screenshot)):
             for i in range(self.op_idx, len(self.route.route_list)):
                 item = self.route.route_list[i]
                 if item.op in [operation_const.OP_MOVE, operation_const.OP_SLOW_MOVE, operation_const.OP_NO_POS_MOVE,

@@ -51,7 +51,7 @@ class SimUniFightElite(SrOperation):
     @node_from(from_name='检测敌人')
     @operation_node(name='秘技进入战斗')
     def _technique_fight(self) -> OperationRoundResult:
-        op = StartFightForElite(self.ctx)
+        op = StartFightForElite(self.ctx, silverwolf_999_last=True)
         return self.round_by_op_result(op.execute(), wait=1)
 
     @node_from(from_name='秘技进入战斗')

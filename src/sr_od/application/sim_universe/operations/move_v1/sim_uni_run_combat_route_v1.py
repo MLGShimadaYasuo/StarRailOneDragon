@@ -13,6 +13,7 @@ from sr_od.application.sim_universe.sim_uni_data import SimUniLevelType
 from sr_od.application.sim_universe.sim_uni_route import SimUniRoute
 from sr_od.context.sr_context import SrContext
 from sr_od.operations.sr_operation import SrOperation
+from sr_od.operations.silverwolf_999_technique import should_use_buff_technique
 from sr_od.operations.technique import UseTechnique
 
 
@@ -46,7 +47,9 @@ class SimUniRunCombatRoute(SrOperation):
         如果是秘技开怪 且是上buff类的 就在路线运行前上buff
         :return:
         """
-        if not self.config.technique_fight or not self.ctx.team_info.is_buff_technique or self.ctx.tech_used_in_lasting:
+        if (not self.config.technique_fight
+                or not self.ctx.team_info.is_buff_technique
+                or not should_use_buff_technique(self.ctx, self.last_screenshot)):
             return self.round_success()
         else:
             op = UseTechnique(self.ctx,

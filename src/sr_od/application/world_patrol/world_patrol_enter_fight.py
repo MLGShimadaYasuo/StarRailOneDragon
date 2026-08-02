@@ -10,6 +10,11 @@ from one_dragon.utils.log_utils import log
 from sr_od.application.world_patrol import world_patrol_screen_state
 from sr_od.config import game_const
 from sr_od.context.sr_context import SrContext
+from sr_od.operations.silverwolf_999_technique import (
+    is_silverwolf_999_current,
+    SilverWolf999TechniqueAction,
+    SilverWolf999TechniqueState,
+)
 from sr_od.operations.sr_operation import SrOperation
 from sr_od.operations.technique import UseTechnique, UseTechniqueResult, FastRecover
 from sr_od.screen_state import common_screen_state, battle_screen_state, fast_recover_screen_state
@@ -62,6 +67,9 @@ class WorldPatrolEnterFight(SrOperation):
         self.first_tech_after_battle: bool = False  # 是否战斗画面后第一次使用秘技
         self.ctx.pos_first_cal_pos_after_fight = True
         self.had_last_move: bool = False  # 退出这个指令前 是否已经进行过最后的移动了
+        self.silverwolf_999_technique_state = SilverWolf999TechniqueState()
+        self.silverwolf_999_alert_started_at: Optional[float] = None
+        self.silverwolf_999_fallback_attack_done: bool = False
 
         return None
 
@@ -111,23 +119,80 @@ class WorldPatrolEnterFight(SrOperation):
             result = self._attack(now_time)
             return result
         else:
+            silverwolf_action = self.silverwolf_999_technique_state.next_action(
+                self.ctx, screen, self.technique_fight, self.technique_only, now_time,
+            )
             with_alert, attack_direction = self.ctx.yolo_detector.get_attack_direction(screen, self.last_attack_direction, now_time)
             if with_alert:
                 log.debug('有告警')
                 self.last_alert_time = now_time
             else:
                 log.debug('无告警')
-                if now_time - self.last_alert_time > WorldPatrolEnterFight.EXIT_AFTER_NO_ALTER_TIME:
+                keep_silverwolf_attack_sequence = (
+                        not (self.technique_fight and self.technique_only)
+                        and (
+                            silverwolf_action in [
+                                SilverWolf999TechniqueAction.WAIT,
+                                SilverWolf999TechniqueAction.ATTACK_DIRECTION,
+                            ]
+                            or (
+                                silverwolf_action == SilverWolf999TechniqueAction.NORMAL_ATTACK
+                                and self.attack_times == 0
+                            )
+                        )
+                )
+                if (now_time - self.last_alert_time > WorldPatrolEnterFight.EXIT_AFTER_NO_ALTER_TIME
+                        and not keep_silverwolf_attack_sequence):
                     # 长时间没有告警 攻击可以结束了
                     return self._exit_with_last_move(with_alert)
+
+            silverwolf_999_waiting_with_alert = (
+                    self.technique_fight
+                    and self.technique_only
+                    and is_silverwolf_999_current(self.ctx)
+                    and silverwolf_action == SilverWolf999TechniqueAction.WAIT
+                    and self.silverwolf_999_technique_state.active_since is not None
+                    and with_alert
+            )
+            if silverwolf_999_waiting_with_alert:
+                if self.silverwolf_999_alert_started_at is None:
+                    self.silverwolf_999_alert_started_at = now_time
+            else:
+                # 只计算连续告警；短暂误报或秘技尚未成功开启都不应触发兜底攻击。
+                self.silverwolf_999_alert_started_at = None
+
+            if (
+                    silverwolf_999_waiting_with_alert
+                    and not self.silverwolf_999_fallback_attack_done
+                    and now_time - self.silverwolf_999_alert_started_at
+                    >= SilverWolf999TechniqueState.TECHNIQUE_ONLY_FALLBACK_ATTACK_AFTER
+            ):
+                self.silverwolf_999_fallback_attack_done = True
+                fix_attack_direction = self.fix_and_record_direction(attack_direction)
+                log.info('银狼LV.999仅秘技状态连续检测到敌人，尝试一次普通攻击破局')
+                self.ctx.controller.move(direction=fix_attack_direction, press_time=0.3)
+                return self._attack(time.time())
 
             if now_time - self.last_not_in_world_time > WorldPatrolEnterFight.EXIT_AFTER_NO_BATTLE_TIME:
                 # 长时间没有离开大世界画面 可能是人物卡住了 攻击不到怪
                 return self._exit_with_last_move(with_alert)
 
+            if silverwolf_action == SilverWolf999TechniqueAction.WAIT:
+                self.ctx.controller.stop_moving_forward()
+                return self.round_wait(wait_round_time=0.05)
+            elif silverwolf_action == SilverWolf999TechniqueAction.ATTACK_DIRECTION:
+                direction = self.silverwolf_999_technique_state.attack_direction
+                self.ctx.controller.move(direction=direction, press_time=0.3)
+                self.silverwolf_999_technique_state.mark_direction_attacked()
+                return self._attack(time.time())
+
             fix_attack_direction = self.fix_and_record_direction(attack_direction)
             # 判断是否需要使用秘技
-            if not self.technique_fight:  # 没有开启秘技
+            if silverwolf_action == SilverWolf999TechniqueAction.USE_TECHNIQUE:
+                will_use_tech = True
+            elif silverwolf_action == SilverWolf999TechniqueAction.NORMAL_ATTACK:
+                will_use_tech = False
+            elif not self.technique_fight:  # 没有开启秘技
                 will_use_tech = False
             elif self.ctx.tech_used_in_lasting:  # 之前已经使用秘技了
                 will_use_tech = False
@@ -157,6 +222,12 @@ class WorldPatrolEnterFight(SrOperation):
                         after_buff_time = time.time()
                         self._update_not_in_world_time(after_buff_time - now_time)
 
+            if silverwolf_action == SilverWolf999TechniqueAction.USE_TECHNIQUE:
+                if current_use_tech:
+                    self.silverwolf_999_technique_state.mark_technique_used()
+                # 银狼必须先确认秘技图标出现；无论“仅秘技”是否开启，本轮都不普攻。
+                return self.round_wait(wait_round_time=0.05)
+
             if self.technique_fight and self.technique_only and current_use_tech:
                 # 仅秘技开怪情况下 用了秘技就不进行攻击了 用不了秘技只可能是没秘技点了 这时候可以攻击
                 self.attack_times += 1
@@ -173,7 +244,8 @@ class WorldPatrolEnterFight(SrOperation):
         self.ctx.controller.initiate_attack()
         self.attack_times += 1
         self.ctx.controller.stop_moving_forward()  # 攻击之后再停止移动 避免停止移动的后摇
-        if self.ctx.team_info.is_buff_attack_disappear_technique:
+        if (self.ctx.team_info.is_buff_attack_disappear_technique
+                and not (self.technique_fight and is_silverwolf_999_current(self.ctx))):
             self.ctx.technique_used = False
         return self.round_wait(wait=0.5)
 

@@ -34,6 +34,7 @@ class MoveDirectly(SrOperation):
     stuck_distance: float = 20  # 移动距离多少以内认为是被困
     arrival_distance: float = 10  # 多少距离内认为是到达目的地
     fail_after_no_battle: float = 120  # 多少秒无战斗后退出 通常不会有路线这么久都遇不到怪 只能是卡死了 然后脱困算法又让角色产生些位移
+    ALERT_SKIP_AFTER_FIGHT_SECONDS: ClassVar[float] = 2.0
 
     STATUS_NO_POS: ClassVar[str] = '无法识别坐标'
 
@@ -90,6 +91,7 @@ class MoveDirectly(SrOperation):
         self.last_rec_time = now - 1
         self.last_battle_time = now  # 上一次在战斗的时间 用于判断是否长时间没有进入战斗 然后退出
         self.last_battle_exit_with_alert: bool = False  # 上一次战斗指令退出时 仍然有告警。说明人物卡住了，后续要先忽略攻击告警进行移动。
+        self.attack_detection_skip_until: float = 0.0
         self.pos = []
         if self.ctx.controller.is_moving:  # 连续移动的时候 使用开始点作为一个起始点
             self.pos.append(self.start_pos)
@@ -157,9 +159,11 @@ class MoveDirectly(SrOperation):
             op.execute()
             return self.round_wait('飞霄使用秘技')
 
+        skip_attack_detection = self._is_attack_detection_skipped(now_time)
+
         # 先异步识别是否需要攻击
         if (not self.no_battle  # 如果外层调用保证没有战斗 跳过识别
-            and not self.last_battle_exit_with_alert  # 如果上一次的战斗指令是有告警地退出，说明人物卡住了，先移动，不识别攻击
+            and not skip_attack_detection  # 上一次有告警地退出时，先留出一个短暂移动窗口
         ):
             submit, attack_future = self.ctx.yolo_detector.detect_should_attack_in_world_async(screen, now_time)
             log.debug('提交攻击检测 %s', submit)
@@ -229,10 +233,25 @@ class MoveDirectly(SrOperation):
             return None
         if self.ctx.is_fx_world_patrol_tech:  # 飞霄情况下 只会在特定条件下攻击 跳过这个检测
             return None
+        # 不仅停止提交新检测，也必须屏蔽退出战斗前留下的异步缓存结果，
+        # 否则会在同一个节点立刻再次进入相同的索敌动作。
+        if self._is_attack_detection_skipped(now_time):
+            return None
         if not self.ctx.yolo_detector.should_attack_in_world_last_result(now_time):
             return None
 
         return self.do_attack(True)
+
+    def _is_attack_detection_skipped(self, now_time: float) -> bool:
+        """有告警地退出索敌后，短暂跳过检测，让角色先离开当前卡点。"""
+        if not self.last_battle_exit_with_alert:
+            return False
+        if now_time < self.attack_detection_skip_until:
+            return True
+
+        self.last_battle_exit_with_alert = False
+        self.attack_detection_skip_until = 0.0
+        return False
 
     def do_attack(self, in_world: bool) -> OperationRoundResult:
         """
@@ -248,10 +267,14 @@ class MoveDirectly(SrOperation):
         op_result = fight.execute()
         if not op_result.success:
             return self.round_fail(status=op_result.status, data=op_result.data)
-        else:
-            self.last_battle_exit_with_alert = op_result.status == WorldPatrolEnterFight.STATUS_EXIT_WITH_ALERT
 
         fight_end_time = time.time()
+        self.last_battle_exit_with_alert = op_result.status == WorldPatrolEnterFight.STATUS_EXIT_WITH_ALERT
+        self.attack_detection_skip_until = (
+            fight_end_time + MoveDirectly.ALERT_SKIP_AFTER_FIGHT_SECONDS
+            if self.last_battle_exit_with_alert
+            else 0.0
+        )
 
         self.last_battle_time = fight_end_time
         self.last_rec_time += fight_end_time - fight_start_time  # 战斗可能很久 更改记录时间

@@ -13,8 +13,7 @@ from sr_od.application.sim_universe.sim_uni_data import SimUniLevelType
 from sr_od.application.sim_universe.sim_uni_route import SimUniRoute
 from sr_od.context.sr_context import SrContext
 from sr_od.operations.sr_operation import SrOperation
-from sr_od.operations.silverwolf_999_technique import should_use_buff_technique
-from sr_od.operations.technique import UseTechnique
+from sr_od.operations.technique import should_use_buff_technique, UseTechnique
 
 
 class SimUniRunCombatRoute(SrOperation):

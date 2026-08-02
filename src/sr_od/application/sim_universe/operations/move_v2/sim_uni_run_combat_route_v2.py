@@ -19,8 +19,7 @@ from sr_od.application.sim_universe.operations.sim_uni_enter_fight import SimUni
 from sr_od.application.sim_universe.sim_uni_data import SimUniLevelType, SimUniLevelTypeEnum
 from sr_od.context.sr_context import SrContext
 from sr_od.operations.sr_operation import SrOperation
-from sr_od.operations.silverwolf_999_technique import should_use_buff_technique
-from sr_od.operations.technique import UseTechnique
+from sr_od.operations.technique import should_use_buff_technique, UseTechnique
 from sr_od.screen_state import common_screen_state
 from sr_od.sr_map import mini_map_utils
 from sr_od.sr_map.mini_map_info import MiniMapInfo

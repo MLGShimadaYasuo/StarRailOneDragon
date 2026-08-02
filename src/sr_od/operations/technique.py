@@ -1,16 +1,271 @@
 import time
 
+from dataclasses import dataclass
+from enum import Enum
 from cv2.typing import MatLike
 from typing import ClassVar, Optional
 
+import cv2
+import numpy as np
+
+from one_dragon.base.geometry.rectangle import Rect
 from one_dragon.base.operation.operation_edge import node_from
 from one_dragon.base.operation.operation_node import operation_node
 from one_dragon.base.operation.operation_round_result import OperationRoundResult
 from one_dragon.utils import cv2_utils, str_utils
 from one_dragon.utils.i18_utils import gt
+from sr_od.config.character_const import Character, SILVERWOLF_999
 from sr_od.context.sr_context import SrContext
 from sr_od.operations.sr_operation import SrOperation
 from sr_od.screen_state import common_screen_state
+
+
+class TechniqueFightAction(Enum):
+    """配置了秘技战斗策略的角色下一步需要执行的动作。"""
+
+    DEFAULT = 'default'
+    USE_TECHNIQUE = 'use_technique'
+    WAIT = 'wait'
+    ATTACK_DIRECTION = 'attack_direction'
+    NORMAL_ATTACK = 'normal_attack'
+
+
+@dataclass(frozen=True)
+class TechniqueFightPolicy:
+    """需要保持秘技状态或定制开怪动作的角色配置。"""
+
+    active_icon_rect: Rect
+    active_icon_slot_gap: int
+    active_icon_hsv_lower: tuple[int, int, int]
+    active_icon_hsv_upper: tuple[int, int, int]
+    active_icon_min_ratio: float
+    activation_grace_seconds: float
+    wait_after_use: float
+    wait_before_attack: float
+    attack_directions: tuple[str, ...]
+    technique_only_fallback_after: Optional[float]
+    keep_active_after_attack: bool
+    check_after_transport: bool
+
+
+TECHNIQUE_FIGHT_POLICY_BY_CHARACTER_ID: dict[str, TechniqueFightPolicy] = {
+    SILVERWOLF_999.id: TechniqueFightPolicy(
+        active_icon_rect=Rect(1607, 304, 1645, 344),
+        active_icon_slot_gap=93,
+        active_icon_hsv_lower=(15, 80, 100),
+        active_icon_hsv_upper=(40, 255, 255),
+        active_icon_min_ratio=0.15,
+        activation_grace_seconds=1.5,
+        wait_after_use=4.0,
+        wait_before_attack=1.0,
+        attack_directions=('w', 'a', 's', 'd'),
+        technique_only_fallback_after=8.0,
+        keep_active_after_attack=True,
+        check_after_transport=True,
+    ),
+}
+
+
+def get_current_character(ctx: SrContext) -> Optional[Character]:
+    character_list = ctx.team_info.character_list
+    current_active = ctx.team_info.current_active
+    if (
+            character_list is None
+            or current_active < 0
+            or current_active >= len(character_list)
+    ):
+        return None
+    return character_list[current_active]
+
+
+def get_technique_fight_policy(character: Optional[Character]) -> Optional[TechniqueFightPolicy]:
+    if character is None:
+        return None
+    return TECHNIQUE_FIGHT_POLICY_BY_CHARACTER_ID.get(character.id)
+
+
+def get_current_technique_fight_policy(ctx: SrContext) -> Optional[TechniqueFightPolicy]:
+    return get_technique_fight_policy(get_current_character(ctx))
+
+
+def is_current_technique_active(ctx: SrContext, screen: MatLike) -> bool:
+    """按当前角色的通用策略检测秘技是否仍处于开启状态。"""
+    policy = get_current_technique_fight_policy(ctx)
+    if policy is None or screen is None:
+        return False
+
+    current_active = ctx.team_info.current_active
+    base_rect = policy.active_icon_rect
+    offset_y = current_active * policy.active_icon_slot_gap
+    rect = Rect(base_rect.x1, base_rect.y1 + offset_y, base_rect.x2, base_rect.y2 + offset_y)
+    if screen.shape[0] < rect.y2 or screen.shape[1] < rect.x2:
+        return False
+
+    part = cv2_utils.crop_image_only(screen, rect)
+    if part is None or part.size == 0:
+        return False
+
+    hsv = cv2.cvtColor(part, cv2.COLOR_RGB2HSV)
+    yellow_mask = cv2.inRange(
+        hsv,
+        np.array(policy.active_icon_hsv_lower, dtype=np.uint8),
+        np.array(policy.active_icon_hsv_upper, dtype=np.uint8),
+    )
+    yellow_ratio = cv2.countNonZero(yellow_mask) / yellow_mask.size
+    return yellow_ratio >= policy.active_icon_min_ratio
+
+
+def should_use_buff_technique(ctx: SrContext, screen: MatLike) -> bool:
+    """判断当前BUFF类角色是否需要预先使用秘技。"""
+    policy = get_current_technique_fight_policy(ctx)
+    if policy is not None:
+        if is_current_technique_active(ctx, screen):
+            return False
+        # 刚按下秘技时图标可能还未显示，避免相邻节点连续按键。
+        return not (
+                ctx.technique_used
+                and ctx.last_use_tech_time > 0
+                and time.time() - ctx.last_use_tech_time < policy.activation_grace_seconds
+        )
+    return not ctx.tech_used_in_lasting
+
+
+def should_preserve_technique_after_attack(ctx: SrContext, technique_fight: bool) -> bool:
+    policy = get_current_technique_fight_policy(ctx)
+    return technique_fight and policy is not None and policy.keep_active_after_attack
+
+
+class TechniqueFightState:
+    """一次开怪指令内由角色配置驱动的秘技与攻击状态。"""
+
+    def __init__(self):
+        self.character_id: Optional[str] = None
+        self.active_since: Optional[float] = None
+        self.activation_requested_at: Optional[float] = None
+        self.battle_entered_at: Optional[float] = None
+        self.attack_directions: tuple[str, ...] = ()
+        self.attack_direction_idx: int = 0
+        self.alert_started_at: Optional[float] = None
+        self.fallback_attack_done: bool = False
+
+    def reset(self) -> None:
+        self.character_id = None
+        self.active_since = None
+        self.activation_requested_at = None
+        self.battle_entered_at = None
+        self.attack_directions = ()
+        self.attack_direction_idx = 0
+        self.alert_started_at = None
+        self.fallback_attack_done = False
+
+    def _get_policy(self, ctx: SrContext) -> Optional[TechniqueFightPolicy]:
+        character = get_current_character(ctx)
+        policy = get_technique_fight_policy(character)
+        if character is None or policy is None:
+            self.reset()
+            return None
+        if self.character_id != character.id:
+            self.reset()
+            self.character_id = character.id
+            self.attack_directions = policy.attack_directions
+        return policy
+
+    def _reset_activation(self) -> None:
+        self.active_since = None
+        self.activation_requested_at = None
+        self.attack_direction_idx = 0
+
+    def mark_technique_used(self, now: Optional[float] = None) -> None:
+        now = time.time() if now is None else now
+        self.active_since = now
+        self.activation_requested_at = now
+        self.attack_direction_idx = 0
+
+    @property
+    def attack_direction(self) -> Optional[str]:
+        if self.attack_direction_idx >= len(self.attack_directions):
+            return None
+        return self.attack_directions[self.attack_direction_idx]
+
+    def mark_direction_attacked(self) -> None:
+        if self.attack_direction_idx < len(self.attack_directions):
+            self.attack_direction_idx += 1
+
+    def next_action(self, ctx: SrContext, screen: MatLike,
+                    technique_fight: bool, technique_only: bool,
+                    now: Optional[float] = None) -> TechniqueFightAction:
+        """根据当前角色配置和秘技状态给出下一动作。"""
+        now = time.time() if now is None else now
+        policy = self._get_policy(ctx)
+        if policy is None:
+            return TechniqueFightAction.DEFAULT
+        if self.battle_entered_at is None:
+            self.battle_entered_at = now
+
+        if not technique_fight:
+            if now - self.battle_entered_at < policy.wait_before_attack:
+                return TechniqueFightAction.WAIT
+            return TechniqueFightAction.NORMAL_ATTACK
+
+        technique_active = is_current_technique_active(ctx, screen)
+        if technique_active:
+            if self.active_since is None:
+                self.active_since = ctx.last_use_tech_time if ctx.last_use_tech_time > 0 else now
+                self.attack_direction_idx = 0
+            self.activation_requested_at = None
+        elif (
+                self.activation_requested_at is not None
+                and now - self.activation_requested_at < policy.activation_grace_seconds
+        ):
+            return TechniqueFightAction.WAIT
+        else:
+            self._reset_activation()
+            return TechniqueFightAction.USE_TECHNIQUE
+
+        if technique_only:
+            return TechniqueFightAction.WAIT
+
+        attack_after = max(
+            self.active_since + policy.wait_after_use,
+            self.battle_entered_at + policy.wait_before_attack,
+        )
+        if now < attack_after:
+            return TechniqueFightAction.WAIT
+        if self.attack_direction is not None:
+            return TechniqueFightAction.ATTACK_DIRECTION
+        return TechniqueFightAction.NORMAL_ATTACK
+
+    def should_fallback_normal_attack(self, ctx: SrContext,
+                                      action: TechniqueFightAction,
+                                      technique_fight: bool,
+                                      technique_only: bool,
+                                      with_alert: bool,
+                                      now: Optional[float] = None) -> bool:
+        """仅秘技策略持续检测到敌人时，按配置决定是否补一次普攻。"""
+        now = time.time() if now is None else now
+        policy = self._get_policy(ctx)
+        waiting_with_alert = (
+                policy is not None
+                and policy.technique_only_fallback_after is not None
+                and technique_fight
+                and technique_only
+                and action == TechniqueFightAction.WAIT
+                and self.active_since is not None
+                and with_alert
+        )
+        if not waiting_with_alert:
+            self.alert_started_at = None
+            return False
+        if self.alert_started_at is None:
+            self.alert_started_at = now
+            return False
+        if self.fallback_attack_done:
+            return False
+        if now - self.alert_started_at < policy.technique_only_fallback_after:
+            return False
+
+        self.fallback_attack_done = True
+        return True
 
 
 def pc_can_use_technique(ctx: SrContext, screen: MatLike, key: str) -> bool:

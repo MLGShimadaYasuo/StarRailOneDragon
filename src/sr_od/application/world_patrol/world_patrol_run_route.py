@@ -18,10 +18,9 @@ from sr_od.operations.interact.move_interact import MoveInteract
 from sr_od.operations.move.move_directly import MoveDirectly
 from sr_od.operations.move.move_without_pos import MoveWithoutPos
 from sr_od.operations.sr_operation import SrOperation
-from sr_od.operations.silverwolf_999_technique import is_silverwolf_999_current, should_use_buff_technique
 from sr_od.operations.team.check_team_members_in_world import CheckTeamMembersInWorld
 from sr_od.operations.team.switch_member import SwitchMember
-from sr_od.operations.technique import UseTechnique
+from sr_od.operations.technique import get_current_technique_fight_policy, should_use_buff_technique, UseTechnique
 from sr_od.operations.wait.wait_in_seconds import WaitInSeconds
 from sr_od.operations.wait.wait_in_world import WaitInWorld
 from sr_od.screen_state import common_screen_state
@@ -101,9 +100,11 @@ class WorldPatrolRunRoute(SrOperation):
     @node_from(from_name='检测组队')
     @operation_node(name='传送后检查秘技')
     def _check_technique_after_transport(self) -> OperationRoundResult:
-        """勾选秘技开怪时，传送落地后立即确认银狼LV.999召唤物仍然开启。"""
+        """传送落地后，按当前角色策略确认需要保持的秘技仍然开启。"""
+        fight_policy = get_current_technique_fight_policy(self.ctx)
         if (not self.ctx.world_patrol_config.technique_fight
-                or not is_silverwolf_999_current(self.ctx)
+                or fight_policy is None
+                or not fight_policy.check_after_transport
                 or not should_use_buff_technique(self.ctx, self.last_screenshot)):
             return self.round_success()
 

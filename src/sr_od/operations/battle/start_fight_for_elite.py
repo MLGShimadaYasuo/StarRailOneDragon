@@ -8,7 +8,6 @@ from one_dragon.utils.log_utils import log
 from sr_od.config.character_const import (
     Character,
     SILVERWOLF,
-    SILVERWOLF_999,
     TECHNIQUE_AREA,
     TECHNIQUE_ATTACK,
     TECHNIQUE_BUFF,
@@ -17,15 +16,16 @@ from sr_od.config.character_const import (
     is_attack_character,
 )
 from sr_od.context.sr_context import SrContext
-from sr_od.operations.silverwolf_999_technique import (
-    is_silverwolf_999_current,
-    SilverWolf999TechniqueDetector,
-    SilverWolf999TechniqueState,
-)
 from sr_od.operations.sr_operation import SrOperation
 from sr_od.operations.team.check_team_members_in_world import CheckTeamMembersInWorld
 from sr_od.operations.team.switch_member import SwitchMember
-from sr_od.operations.technique import CheckTechniquePoint, UseTechnique, UseTechniqueResult
+from sr_od.operations.technique import (
+    CheckTechniquePoint,
+    get_technique_fight_policy,
+    is_current_technique_active,
+    UseTechnique,
+    UseTechniqueResult,
+)
 from sr_od.screen_state import common_screen_state
 
 
@@ -36,8 +36,7 @@ class StartFightForElite(SrOperation):
     def __init__(self, ctx: SrContext,
                  character_list: Optional[List[Character]] = None,
                  skip_point_check: bool = False,
-                 skip_resurrection_check: bool = False,
-                 silverwolf_999_last: bool = False):
+                 skip_resurrection_check: bool = False):
         """
         对不会主动攻击的精英怪开战 上BUFF之后进入战斗
         优先使用上BUFF不触发战斗的秘技 最后再使用开战技能
@@ -48,7 +47,6 @@ class StartFightForElite(SrOperation):
         :param character_list: 当前配队 无传入时自动识别 但不准
         :param skip_point_check: 跳过使用秘技时检测秘技点 逐光捡金可用
         :param skip_resurrection_check: 跳过切换角色时检测复活 逐光捡金可用
-        :param silverwolf_999_last: 有银狼LV.999时，固定由她最后使用秘技并保持该角色攻击开怪
         """
         SrOperation.__init__(self, ctx, op_name=gt('使用秘技 进入战斗'),)
         self.character_list_from_param: Optional[List[Character]] = character_list
@@ -59,8 +57,8 @@ class StartFightForElite(SrOperation):
         self.technique_point: int = 5  # 秘技点
         self.technique_idx: int = 0  # 当前到哪一个角色使用
         self.skip_resurrection_check: bool = skip_resurrection_check  # 跳过切换角色时检测复活
-        self.silverwolf_999_last: bool = silverwolf_999_last
-        self.silverwolf_999_battle_wait_done: bool = False
+        self.final_character_idx: Optional[int] = None
+        self.final_attack_wait_done: bool = False
 
     def handle_init(self) -> Optional[OperationRoundResult]:
         """
@@ -75,7 +73,8 @@ class StartFightForElite(SrOperation):
         self.technique_order = []
         self.need_attack_finally = True
         self.technique_idx: int = 0  # 当前到哪一个角色使用
-        self.silverwolf_999_battle_wait_done = False
+        self.final_character_idx = None
+        self.final_attack_wait_done = False
 
         return None
 
@@ -98,10 +97,10 @@ class StartFightForElite(SrOperation):
 
         # 秘技点不够的时候 减少使用
         if self.technique_point < len(self.technique_order):
-            if (self.silverwolf_999_last
+            if (self.final_character_idx is not None
                     and self.technique_point > 0
-                    and self.character_list[self.technique_order[-1]] == SILVERWOLF_999):
-                # 优先丢弃前置BUFF，至少保留1点给最后负责开怪的银狼LV.999。
+                    and self.technique_order[-1] == self.final_character_idx):
+                # 优先丢弃前置BUFF，至少保留1点给最终负责开怪的角色。
                 self.technique_order = (
                         self.technique_order[:self.technique_point - 1]
                         + [self.technique_order[-1]]
@@ -150,13 +149,6 @@ class StartFightForElite(SrOperation):
                 self.technique_order.append(i)
                 break
 
-        if self.silverwolf_999_last:
-            for i in range(4):
-                if self.character_list[i] == SILVERWOLF_999:
-                    # 银狼LV.999的召唤物秘技作为最后一个开怪秘技；施放后不再切换角色。
-                    self.technique_order.append(i)
-                    return self.round_success()
-
         # 任何攻击类只能有一个 选择之后就可以返回了
         for i in range(4):  # 输出角色 攻击类
             if self.character_list[i] is None:
@@ -164,6 +156,7 @@ class StartFightForElite(SrOperation):
             if not is_attack_character(self.character_list[i].id):
                 continue
             if self.character_list[i].technique_type in [TECHNIQUE_ATTACK, TECHNIQUE_BUFF_ATTACK, TECHNIQUE_BUFF_ATTACK_DISAPPEAR]:
+                self.final_character_idx = i
                 self.technique_order.append(i)
                 return self.round_success()
 
@@ -171,6 +164,7 @@ class StartFightForElite(SrOperation):
             if self.character_list[i] is None:
                 continue
             if self.character_list[i] == SILVERWOLF:
+                self.final_character_idx = i
                 self.technique_order.append(i)
                 return self.round_success()
 
@@ -178,6 +172,7 @@ class StartFightForElite(SrOperation):
             if self.character_list[i] is None:
                 continue
             if self.character_list[i].technique_type in [TECHNIQUE_ATTACK, TECHNIQUE_BUFF_ATTACK, TECHNIQUE_BUFF_ATTACK_DISAPPEAR]:
+                self.final_character_idx = i
                 self.technique_order.append(i)
                 return self.round_success()
 
@@ -207,16 +202,14 @@ class StartFightForElite(SrOperation):
         :return:
         """
         idx = self.technique_order[self.technique_idx]
-        is_silverwolf_999_final = (
-                self.silverwolf_999_last
-                and self.character_list[idx] == SILVERWOLF_999
-        )
-        if (is_silverwolf_999_final
-                and SilverWolf999TechniqueDetector.is_active(self.ctx, self.last_screenshot)):
-            # 召唤物已经开启时不能再次按秘技，否则会把保持状态关闭。
+        is_final_character = idx == self.final_character_idx
+        fight_policy = get_technique_fight_policy(self.character_list[idx]) if is_final_character else None
+        if (fight_policy is not None
+                and is_current_technique_active(self.ctx, self.last_screenshot)):
+            # 可保持的秘技已经开启时不能再次按键，否则会把保持状态关闭。
             self.technique_idx += 1
-            self.silverwolf_999_battle_wait_done = True
-            return self.round_success(wait=SilverWolf999TechniqueState.WAIT_BEFORE_BATTLE_ATTACK)
+            self.final_attack_wait_done = True
+            return self.round_success(wait=fight_policy.wait_before_attack)
 
         op = UseTechnique(self.ctx)
         op_result = op.execute()
@@ -228,10 +221,9 @@ class StartFightForElite(SrOperation):
         self.technique_idx += 1
 
         wait_time = 0
-        if is_silverwolf_999_final and use_tech:
-            # 与普通开怪一致，给召唤物4秒的自动攻击窗口，再由银狼本人攻击。
-            wait_time = SilverWolf999TechniqueState.WAIT_AFTER_TECHNIQUE
-            self.silverwolf_999_battle_wait_done = True
+        if fight_policy is not None and use_tech:
+            wait_time = max(fight_policy.wait_after_use, fight_policy.wait_before_attack)
+            self.final_attack_wait_done = True
         elif self.technique_idx < len(self.technique_order) and use_tech:
             # 还需要切换人物使用秘技的情况
             # 如果这次使用了秘技 要等待一下后摇消失后 再进行下一步操作
@@ -245,13 +237,16 @@ class StartFightForElite(SrOperation):
         发起攻击
         :return:
         """
-        if (self.silverwolf_999_last
-                and is_silverwolf_999_current(self.ctx)
-                and not self.silverwolf_999_battle_wait_done):
-            self.silverwolf_999_battle_wait_done = True
+        final_character = (
+            None if self.final_character_idx is None
+            else self.character_list[self.final_character_idx]
+        )
+        fight_policy = get_technique_fight_policy(final_character)
+        if fight_policy is not None and not self.final_attack_wait_done:
+            self.final_attack_wait_done = True
             return self.round_retry(
-                '银狼LV.999等待召唤物攻击',
-                wait=SilverWolf999TechniqueState.WAIT_BEFORE_BATTLE_ATTACK,
+                '等待秘技开怪',
+                wait=fight_policy.wait_before_attack,
             )
 
         screen = self.last_screenshot

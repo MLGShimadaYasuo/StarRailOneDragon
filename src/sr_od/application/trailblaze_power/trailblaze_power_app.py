@@ -53,6 +53,7 @@ class TrailblazePowerApp(SrApplication):
         return self.round_success(status=TrailblazePowerApp.STATUS_WITH_PLAN)
 
     @node_from(from_name='检查当前需要挑战的关卡', status=STATUS_WITH_PLAN)
+    @node_from(from_name='执行开拓力计划')
     @operation_node(name='打开指南检查体力')
     def open_guide(self) -> OperationRoundResult:
         op = GuideCheckPower(self.ctx)
@@ -64,7 +65,6 @@ class TrailblazePowerApp(SrApplication):
         return self.round_by_op_result(op_result)
 
     @node_from(from_name='打开指南检查体力')
-    @node_from(from_name='执行开拓力计划')
     @operation_node(name='执行开拓力计划')
     def execute_plan(self) -> OperationRoundResult:
         self.ctx.power_config.check_plan_run_times()
@@ -87,6 +87,7 @@ class TrailblazePowerApp(SrApplication):
             if plan is None:
                 break
 
+        # noinspection PyUnboundLocalVariable
         if can_run_times == 0:
             return self.round_success(TrailblazePowerApp.STATUS_NO_ENOUGH_POWER)
 
@@ -121,7 +122,8 @@ class TrailblazePowerApp(SrApplication):
             op = ChallengeOrnamentExtraction(self.ctx, mission,
                                              run_times=run_times,
                                              diff=0,
-                                             file_num=plan.team_num,
+                                             file_num=plan.file_num,
+                                             team_name=plan.team_name,
                                              support_character=plan.support if plan.support != 'none' else None,
                                              get_reward_callback=self.on_oe_get_reward)
         else:
